@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GymOS - Create account</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#0a1628;--card:#122340;--line:#223a63;--tx:#fff;--mut:#93a8c9;--g:#22c55e}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);font-size:15px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;width:100%;max-width:380px}
+h1{margin:0 0 6px}h1 span{color:var(--g)}
+p{color:var(--mut)}
+label{display:block;margin-bottom:12px;color:var(--mut);font-size:13px}
+input{display:block;width:100%;margin-top:5px;padding:11px;border-radius:9px;border:1px solid var(--line);background:#0a1628;color:var(--tx);font:inherit}
+button{width:100%;background:var(--g);color:#04210f;border:0;border-radius:9px;padding:12px;font:inherit;font-weight:700;cursor:pointer}
+a{color:var(--g);cursor:pointer;text-decoration:none}
+.hide{display:none!important}
+#msg{min-height:20px;margin:0 0 10px}
+.links{text-align:center;margin:14px 0 0}
+</style>
+</head>
+<body>
+<form class="box" id="f">
+  <h1>Gym<span>OS</span></h1>
+  <p id="sub">Create your gym account.</p>
+  <label id="gl">Gym name<input id="gn" autocomplete="organization"></label>
+  <label id="el">Email<input id="em" type="email" autocomplete="username"></label>
+  <label id="pl">Password<input id="pw" type="password" autocomplete="new-password"></label>
+  <p id="msg"></p>
+  <button id="btn">Create account</button>
+  <p class="links"><a id="t1">Forgot password?</a></p>
+  <p class="links" style="margin-top:8px"><a href="index.html">I already have an account, sign in</a></p>
+</form>
+
+<script>
+const sb=supabase.createClient('https://nygoppuratwzhbpbyhce.supabase.co','sb_publishable_Oo78-dOuAZPSBQ6oU6dZsA_RO0I4plo');
+const $=s=>document.querySelector(s);
+let mode='up'; // up = create account, fp = forgot password, new = set new password
+function show(m){
+  mode=m;
+  $('#gl').classList.toggle('hide',m!=='up');
+  $('#el').classList.toggle('hide',m==='new');
+  $('#pl').classList.toggle('hide',m==='fp');
+  $('#sub').textContent={up:'Create your gym account.',fp:'Enter your email to get a reset link.',new:'Choose a new password.'}[m];
+  $('#btn').textContent={up:'Create account',fp:'Send reset link',new:'Save new password'}[m];
+  $('#t1').textContent=m==='up'?'Forgot password?':'Create an account instead';
+  $('#t1').classList.toggle('hide',m==='new');
+  $('#pw').autocomplete='new-password';
+  $('#msg').textContent='';
+}
+const say=(t,ok)=>{$('#msg').style.color=ok?'var(--g)':'#ff8a8a';$('#msg').textContent=t};
+$('#t1').onclick=()=>show(mode==='up'?'fp':'up');
+
+sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY')show('new')});
+
+$('#f').onsubmit=async e=>{
+  e.preventDefault();say('');
+  const em=$('#em').value.trim(),pw=$('#pw').value,gn=$('#gn').value.trim();
+  $('#btn').disabled=true;
+  try{
+    if(mode==='fp'){
+      if(!em)return say('Enter your email.');
+      const r=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+      return r.error?say(r.error.message):say('Check your email for the reset link.',1);
+    }
+    if(mode==='new'){
+      if(pw.length<8)return say('Use at least 8 characters.');
+      const r=await sb.auth.updateUser({password:pw});
+      if(r.error)return say(r.error.message);
+      say('Password changed. Opening GymOS...',1);
+      return setTimeout(()=>location.href='index.html',1200);
+    }
+    if(!gn)return say('Enter your gym name.');
+    if(!em)return say('Enter your email.');
+    if(pw.length<8)return say('Use a password with at least 8 characters.');
+    const r=await sb.auth.signUp({email:em,password:pw,options:{data:{gym_name:gn}}});
+    if(r.error)return say(r.error.message);
+    if(!r.data.session)return say('Account created. Check your email to confirm it, then sign in.',1);
+    const c=await sb.from('gyms').insert({id:crypto.randomUUID(),owner_id:r.data.user.id,gym_name:gn});
+    if(c.error)return say('Account created, but the gym could not be saved: '+c.error.message);
+    say('Account created. Opening GymOS...',1);
+    setTimeout(()=>location.href='index.html',1200);
+  }finally{$('#btn').disabled=false}
+};
+</script>
+</body>
+</html>
